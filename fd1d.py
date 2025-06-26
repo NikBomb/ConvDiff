@@ -43,13 +43,13 @@ def tdma(A, d):
 
 if __name__ == "__main__":
     density = 1.0
-    vel = 100
+    vel = 10
     dif = 0.2
     phi_0 = 0.
     phi_l = 1
     x_min = 0.
     x_max = 1
-    n = 1000
+    n = 100
     L = x_max - x_min
     Pe = (density * vel * L)/dif 
     discr_convection = DiscretizationConvection.UPWIND
@@ -107,20 +107,20 @@ if __name__ == "__main__":
             if i == n - 2:
                 b[j] -= a_e * phi_l
 
-            if (2 <= i <= n - 3 and diff_discr == DiscretizationDiffusion.FOURTH_ORDER_CENTRAL_DIFF and iteration > 1):
+            if (diff_discr == DiscretizationDiffusion.FOURTH_ORDER_CENTRAL_DIFF and iteration > 1):
+                ghost_idx =  j + 2
                 b[j] += dif * (
-                (-phi[i + 2] + 16*phi[i + 1] - 30*phi[i] + 16*phi[i - 1] - phi[i - 2]) / (12 * dx**2)
-                - (phi[i + 1] - 2*phi[i] + phi[i - 1]) / (dx**2))                
+                (-phi[ghost_idx + 2] + 16*phi[ghost_idx + 1] - 30*phi[ghost_idx] + 16*phi[ghost_idx - 1] - phi[ghost_idx - 2]) / (12 * dx**2)
+                - (phi[ghost_idx + 1] - 2*phi[ghost_idx] + phi[ghost_idx - 1]) / (dx**2))                
         
         x = tdma(A,b)
         iteration += 1
         if (diff_discr == DiscretizationDiffusion.FOURTH_ORDER_CENTRAL_DIFF):
             phi_old = phi.copy()
-
-            phi[0] = 5 * phi[1] - 10 * phi[2]  + 10 * phi[3] - 5 * phi[4] + phi[5]
             phi[1] = phi_0
             phi[2:-2] = x
             phi[-2] = phi_l
+            phi[0] = 5 * phi[1] - 10 * phi[2]  + 10 * phi[3] - 5 * phi[4] + phi[5]
             phi[n + 1] = phi[n - 4] - 5 * phi[n - 3] + 10 * phi[n - 2] - 10 * phi[n - 1] + 5 * phi[n]
             err = np.linalg.norm(phi - phi_old, ord = 1)
         else:
