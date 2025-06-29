@@ -43,24 +43,24 @@ def tdma(A, d):
 
 if __name__ == "__main__":
     density = 1.0
-    vel = 10
-    dif = 0.2
+    vel = 1
+    dif = 0.02
     phi_0 = 0.
     phi_l = 1
     x_min = 0.
     x_max = 1
-    n = 100
+    n = 11
     L = x_max - x_min
     Pe = (density * vel * L)/dif 
     discr_convection = DiscretizationConvection.UPWIND
-    diff_discr = DiscretizationDiffusion.FOURTH_ORDER_CENTRAL_DIFF
+    diff_discr = DiscretizationDiffusion.CENTRAL_DIFFERENCE
     phi = np.zeros((n,1))
     n_iterations = 1
     iteration = 1
-    err = 1000
+    err = 10000
     tol = 1e-10
-
-    if (diff_discr == DiscretizationDiffusion.FOURTH_ORDER_CENTRAL_DIFF):
+    hasGhostPoints = diff_discr == DiscretizationDiffusion.FOURTH_ORDER_CENTRAL_DIFF or discr_convection == DiscretizationConvection.THIRD_ORDER_UPWIND or discr_convection == DiscretizationConvection.FOURTH_ORDER_CENTRAL_DIFF
+    if (hasGhostPoints):
         phi = np.zeros((n + 2,1))
         n_iterations = 10000
         
@@ -83,17 +83,24 @@ if __name__ == "__main__":
             dx_total = x_vals[i+1] - x_vals[i-1]
 
             # convection (1st-order upwind)
-            a_wc = - (density * vel) / dx_w
-            a_ec = 0.0
+            if (discr_convection == DiscretizationConvection.UPWIND):
+                a_ec =  min(density * vel, 0) / dx_e
+                a_wc =  -max(density * vel, 0) / dx_w
+                a_pc = -(a_ec + a_wc)
+            elif (discr_convection == DiscretizationConvection.CENTRAL_DIFFERENCE):
+                a_wc = -(density * vel) /dx_total
+                a_ec = (density * vel) / dx_total
+                a_pc = 0.0
+
 
             # diffusion (central difference)
-            dxr = 2.0 / dx_total
-            a_wd = -dif * dxr / dx_w
-            a_ed = -dif * dxr / dx_e
+            a_ed = - (2 * dif) / ((dx_total) * (dx_e))
+            a_wd = - (2 * dif) / ((dx_total) * (dx_w)) 
+            a_pd = - (a_ed + a_wd)
 
-            a_w = a_wc + a_wd
-            a_e = a_ec + a_ed
-            a_p = -a_w - a_e
+            a_w = (a_wc + a_wd)
+            a_e = (a_ec + a_ed)
+            a_p = (a_pc + a_pd)
 
             A[j, j] = a_p
             if j > 0:
@@ -107,6 +114,18 @@ if __name__ == "__main__":
             if i == n - 2:
                 b[j] -= a_e * phi_l
 
+            if (discr_convection == DiscretizationConvection.THIRD_ORDER_UPWIND and iteration > 1):
+                ghost_idx = j + 2
+                ud3 = (2 * phi[ghost_idx+1] + 3 * phi[ghost_idx] - 6 * phi[ghost_idx-1] + phi[ghost_idx-2]) / (6 * dx)
+                ud1 = (phi[ghost_idx] - phi[ghost_idx-1]) / dx
+                b[j] += -density * vel * (ud3 - ud1)
+
+            if (discr_convection == DiscretizationConvection.FOURTH_ORDER_CENTRAL_DIFF and iteration > 1):
+                ghost_idx = j + 2
+                cd4 = (-phi[ghost_idx+2] + 8*phi[ghost_idx+1] - 8*phi[ghost_idx-1] + phi[ghost_idx-2]) / (12 * dx)
+                cd2 = (phi[ghost_idx+1] - phi[ghost_idx-1]) / (2 * dx)
+                b[j] += (-density * vel * (cd4 - cd2))  # ensure scalar
+
             if (diff_discr == DiscretizationDiffusion.FOURTH_ORDER_CENTRAL_DIFF and iteration > 1):
                 ghost_idx =  j + 2
                 b[j] += dif * (
@@ -115,7 +134,7 @@ if __name__ == "__main__":
         
         x = tdma(A,b)
         iteration += 1
-        if (diff_discr == DiscretizationDiffusion.FOURTH_ORDER_CENTRAL_DIFF):
+        if (hasGhostPoints):
             phi_old = phi.copy()
             phi[1] = phi_0
             phi[2:-2] = x
@@ -129,14 +148,17 @@ if __name__ == "__main__":
             phi[1:-1] = x
         
 
-
-    tot_err  = np.linalg.norm(phi - phi_exact, ord = 1)/np.linalg.norm(phi_exact)
+    if (hasGhostPoints):
+        tot_err  = np.linalg.norm(phi[1:-1].flatten() - phi_exact, ord = 1)/np.linalg.norm(phi_exact)
+    else:
+        tot_err  = np.linalg.norm(phi.flatten() - phi_exact, ord = 1)/np.linalg.norm(phi_exact) 
 
     print("Total Error:", tot_err)
+    print("Num iterations", iteration - 1)
     # Plot
     plt.figure()
     plt.plot(x_vals, phi_exact, label=f'Analytical Solution (Pe={Pe})')
-    if (diff_discr == DiscretizationDiffusion.FOURTH_ORDER_CENTRAL_DIFF):
+    if (diff_discr == DiscretizationDiffusion.FOURTH_ORDER_CENTRAL_DIFF or discr_convection == DiscretizationConvection.THIRD_ORDER_UPWIND):
         plt.plot(x_vals[:], phi[1:-1], 'o-', label= 'Numerical FD')
     else:
         plt.plot(x_vals, phi, 'o-', label= 'Numerical FD')
