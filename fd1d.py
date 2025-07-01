@@ -49,11 +49,11 @@ if __name__ == "__main__":
     phi_l = 1
     x_min = 0.
     x_max = 1
-    n = 11
+    n = 100
     L = x_max - x_min
     Pe = (density * vel * L)/dif 
-    discr_convection = DiscretizationConvection.UPWIND
-    diff_discr = DiscretizationDiffusion.CENTRAL_DIFFERENCE
+    discr_convection = DiscretizationConvection.FOURTH_ORDER_CENTRAL_DIFF
+    diff_discr = DiscretizationDiffusion.FOURTH_ORDER_CENTRAL_DIFF
     phi = np.zeros((n,1))
     n_iterations = 1
     iteration = 1
@@ -83,11 +83,11 @@ if __name__ == "__main__":
             dx_total = x_vals[i+1] - x_vals[i-1]
 
             # convection (1st-order upwind)
-            if (discr_convection == DiscretizationConvection.UPWIND):
+            if (discr_convection == DiscretizationConvection.UPWIND or discr_convection==DiscretizationConvection.THIRD_ORDER_UPWIND):
                 a_ec =  min(density * vel, 0) / dx_e
                 a_wc =  -max(density * vel, 0) / dx_w
                 a_pc = -(a_ec + a_wc)
-            elif (discr_convection == DiscretizationConvection.CENTRAL_DIFFERENCE):
+            elif (discr_convection == DiscretizationConvection.CENTRAL_DIFFERENCE or discr_convection == DiscretizationConvection.FOURTH_ORDER_CENTRAL_DIFF):
                 a_wc = -(density * vel) /dx_total
                 a_ec = (density * vel) / dx_total
                 a_pc = 0.0
@@ -124,13 +124,14 @@ if __name__ == "__main__":
                 ghost_idx = j + 2
                 cd4 = (-phi[ghost_idx+2] + 8*phi[ghost_idx+1] - 8*phi[ghost_idx-1] + phi[ghost_idx-2]) / (12 * dx)
                 cd2 = (phi[ghost_idx+1] - phi[ghost_idx-1]) / (2 * dx)
-                b[j] += (-density * vel * (cd4 - cd2))  # ensure scalar
+                b[j] += -density * vel * (cd4 - cd2)  
+
 
             if (diff_discr == DiscretizationDiffusion.FOURTH_ORDER_CENTRAL_DIFF and iteration > 1):
                 ghost_idx =  j + 2
-                b[j] += dif * (
-                (-phi[ghost_idx + 2] + 16*phi[ghost_idx + 1] - 30*phi[ghost_idx] + 16*phi[ghost_idx - 1] - phi[ghost_idx - 2]) / (12 * dx**2)
-                - (phi[ghost_idx + 1] - 2*phi[ghost_idx] + phi[ghost_idx - 1]) / (dx**2))                
+                cd2 = (phi[ghost_idx+1] - 2 * phi[ghost_idx] + phi[ghost_idx - 1])/ (dx*dx)
+                cd4 = (-phi[ghost_idx+2] + 16* phi[ghost_idx+1] - 30 * phi[ghost_idx] + 16 *phi[ghost_idx - 1] - phi[ghost_idx-2])/(12*dx*dx)
+                b[j] += dif * (cd4 - cd2)
         
         x = tdma(A,b)
         iteration += 1
