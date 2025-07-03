@@ -1,7 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import time
 from enum import Enum
+from numpy import polyfit
+import pandas as pd
+
 
 
 class DiscretizationConvection(Enum):
@@ -41,19 +43,17 @@ def tdma(A, d):
 
     return x
 
-if __name__ == "__main__":
-    density = 1.0
-    vel = 1
-    dif = 0.02
-    phi_0 = 0.
-    phi_l = 1
-    x_min = 0.
-    x_max = 1
-    n = 100
-    L = x_max - x_min
-    Pe = (density * vel * L)/dif 
-    discr_convection = DiscretizationConvection.FOURTH_ORDER_CENTRAL_DIFF
-    diff_discr = DiscretizationDiffusion.FOURTH_ORDER_CENTRAL_DIFF
+def solve_convection_diffusion(
+                x_vals,
+                phi_0,
+                phi_l,
+                density,
+                vel,
+                dif,
+                discr_convection,
+                diff_discr) :
+    
+    n = x_vals.shape[0]
     phi = np.zeros((n,1))
     n_iterations = 1
     iteration = 1
@@ -65,8 +65,6 @@ if __name__ == "__main__":
         n_iterations = 10000
         
 
-
-    x_vals = np.linspace(x_min, x_max, n)    
     phi_exact = analytical_solution(x_vals, phi_0=phi_0, phi_l=phi_l, Pe=Pe, L=L)
 
     n_unknowns = n - 2
@@ -118,20 +116,20 @@ if __name__ == "__main__":
                 ghost_idx = j + 2
                 ud3 = (2 * phi[ghost_idx+1] + 3 * phi[ghost_idx] - 6 * phi[ghost_idx-1] + phi[ghost_idx-2]) / (6 * dx)
                 ud1 = (phi[ghost_idx] - phi[ghost_idx-1]) / dx
-                b[j] += -density * vel * (ud3 - ud1)
+                b[j] += -density * vel * (ud3 - ud1).item()
 
             if (discr_convection == DiscretizationConvection.FOURTH_ORDER_CENTRAL_DIFF and iteration > 1):
                 ghost_idx = j + 2
                 cd4 = (-phi[ghost_idx+2] + 8*phi[ghost_idx+1] - 8*phi[ghost_idx-1] + phi[ghost_idx-2]) / (12 * dx)
                 cd2 = (phi[ghost_idx+1] - phi[ghost_idx-1]) / (2 * dx)
-                b[j] += -density * vel * (cd4 - cd2)  
+                b[j] += -density * vel * (cd4 - cd2).item()  
 
 
             if (diff_discr == DiscretizationDiffusion.FOURTH_ORDER_CENTRAL_DIFF and iteration > 1):
                 ghost_idx =  j + 2
                 cd2 = (phi[ghost_idx+1] - 2 * phi[ghost_idx] + phi[ghost_idx - 1])/ (dx*dx)
                 cd4 = (-phi[ghost_idx+2] + 16* phi[ghost_idx+1] - 30 * phi[ghost_idx] + 16 *phi[ghost_idx - 1] - phi[ghost_idx-2])/(12*dx*dx)
-                b[j] += dif * (cd4 - cd2)
+                b[j] += dif * (cd4 - cd2).item()
         
         x = tdma(A,b)
         iteration += 1
@@ -153,19 +151,85 @@ if __name__ == "__main__":
         tot_err  = np.linalg.norm(phi[1:-1].flatten() - phi_exact, ord = 1)/np.linalg.norm(phi_exact)
     else:
         tot_err  = np.linalg.norm(phi.flatten() - phi_exact, ord = 1)/np.linalg.norm(phi_exact) 
+    
+    return phi 
+    
+if __name__ == "__main__":
+    density = 1.0
+    vel = 1
+    dif = 0.02
+    phi_0 = 0.
+    phi_l = 1
+    x_min = 0.
+    x_max = 1
+    L = x_max - x_min
+    Pe = (density * vel * L)/dif
+    grid_sizes = [41, 81, 161, 321, 641, 1281, 1280*2 + 1, 1280 *4 +1]
+    schemes = [
+        ("UD1/CD2", DiscretizationConvection.UPWIND, DiscretizationDiffusion.CENTRAL_DIFFERENCE),
+        ("CD2/CD2", DiscretizationConvection.CENTRAL_DIFFERENCE, DiscretizationDiffusion.CENTRAL_DIFFERENCE),
+        ("UD3/CD2", DiscretizationConvection.THIRD_ORDER_UPWIND, DiscretizationDiffusion.CENTRAL_DIFFERENCE),
+        ("UD3/CD4", DiscretizationConvection.THIRD_ORDER_UPWIND, DiscretizationDiffusion.FOURTH_ORDER_CENTRAL_DIFF),
+        ("CD4/CD2", DiscretizationConvection.FOURTH_ORDER_CENTRAL_DIFF, DiscretizationDiffusion.CENTRAL_DIFFERENCE),
+        ("CD4/CD4", DiscretizationConvection.FOURTH_ORDER_CENTRAL_DIFF, DiscretizationDiffusion.FOURTH_ORDER_CENTRAL_DIFF),
+    ] 
+    errors = {name: [] for name, _, _ in schemes}
 
-    print("Total Error:", tot_err)
-    print("Num iterations", iteration - 1)
-    # Plot
+    
+
+    for N in grid_sizes:
+       x_vals = np.linspace(x_min, x_max, N)
+       phi_exact = analytical_solution(x_vals, phi_0, phi_l, Pe, L)
+       for name, conv_scheme, diff_scheme in schemes:
+           phi_numeric = solve_convection_diffusion(
+               x_vals=x_vals,
+               phi_0=phi_0,
+               phi_l=phi_l,
+               density=density,
+               vel=vel,
+               dif=dif,
+               discr_convection=conv_scheme,
+               diff_discr=diff_scheme
+           )
+           if phi_numeric.shape[0] != phi_exact.shape[0]:
+               phi_numeric = phi_numeric[1:-1]  # Remove ghost nodes if needed
+           err = np.linalg.norm(phi_numeric.flatten() - phi_exact, ord=1) / np.linalg.norm(phi_exact, ord=1)
+           errors[name].append(err)
+
+    #save to csv
+    convergence_data = {
+    'Grid Size': grid_sizes
+    }
+
+    for name in errors:
+        convergence_data[f'Error ({name})'] = errors[name]
+    
+    df = pd.DataFrame(convergence_data)
+    df.to_csv("convergence_table.csv", index=False)
+
+    # Plotting
     plt.figure()
-    plt.plot(x_vals, phi_exact, label=f'Analytical Solution (Pe={Pe})')
-    if (diff_discr == DiscretizationDiffusion.FOURTH_ORDER_CENTRAL_DIFF or discr_convection == DiscretizationConvection.THIRD_ORDER_UPWIND):
-        plt.plot(x_vals[:], phi[1:-1], 'o-', label= 'Numerical FD')
-    else:
-        plt.plot(x_vals, phi, 'o-', label= 'Numerical FD')
-    plt.xlabel('x')
-    plt.ylabel('ϕ(x)')
-    plt.title('Numerical vs Analytical Solution of 1D Convection-Diffusion')
-    plt.grid(True)
+    for name in errors:
+         # Convert to logs for least squares
+        num_points_for_fit = 4 
+        h_vals = 1 / (np.array(grid_sizes[-num_points_for_fit:], dtype=float) -1)
+        log_h = np.log(h_vals)
+        log_err = np.log(errors[name][-num_points_for_fit:])
+
+        # Least squares fit: log(err) ≈ slope * log(h) + intercept
+        slope, _ = polyfit(log_h, log_err, 1)
+        slope = abs(slope)
+
+        # Plot error vs grid size
+        plt.plot(grid_sizes, errors[name], label=f"{name} (slope ≈ {slope:.2f})", marker='o')
+
+    
+
+    plt.xlabel("Number of Grid Points (N)")
+    plt.ylabel("L1 Error Norm")
+    plt.title("Convergence Study of Convection-Diffusion Schemes")
+    plt.xscale("log")
+    plt.yscale("log")
     plt.legend()
+    plt.grid(True, which="both", ls="--")
     plt.show()
