@@ -1,15 +1,17 @@
 # 1D Convection-Diffusion Solver 
 
 This repository contains a Python implementation of a **1D finite-difference solver** for the convection–diffusion equation. 
-\[
+```math
+
 \frac{d}{dx} \left( u \phi \right) = \frac{d}{dx} \left( \Gamma \frac{d\phi}{dx} \right)
-\]
+
+```
 
 Where:
 
-- \( \phi(x) \): scalar field (e.g., temperature, concentration)
-- \( u \): velocity (assumed constant)
-- \( \Gamma \): diffusion coefficient (can be constant or variable)
+- $$\( \phi(x) \)$$: scalar field (e.g., temperature, concentration)
+- $$\( u \)$$: velocity (assumed constant)
+- $$\( \Gamma \)$$: diffusion coefficient (can be constant or variable)
 
 
 It includes multiple discretization schemes and supports **deferred correction** to improve accuracy.
