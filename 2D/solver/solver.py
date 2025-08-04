@@ -70,10 +70,12 @@ def convection_diffusion_solver(Nx, Ny, D, u, v, boundary_types, boundary_funcs,
                 continue
 
             # --- Interior nodes ---
-            aw = D / dx**2 + (u / dx if u > 0 else 0)
-            ae = D / dx**2 + (0 if u > 0 else -u / dx)
-            as_ = D / dy**2 + (v / dy if v > 0 else 0)
-            an = D / dy**2 + (0 if v > 0 else -v / dy)
+            u_loc = u(x,y)
+            v_loc = v(x,y)
+            aw = D / dx**2 + (u_loc / dx if u_loc > 0 else 0)
+            ae = D / dx**2 + (0 if u_loc > 0 else -u_loc / dx)
+            as_ = D / dy**2 + (v_loc / dy if v_loc > 0 else 0)
+            an = D / dy**2 + (0 if v_loc > 0 else -v_loc / dy)
             ap = aw + ae + as_ + an
 
             A[p, idx(i, j, Ny)]     = ap

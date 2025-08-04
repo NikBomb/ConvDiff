@@ -17,16 +17,17 @@ def test_mixed():
     X, Y = np.meshgrid(x, y, indexing="ij")
 
     # --- Physical parameters ---
-    u, v = 1.0, 1.0      # convection velocities
-    D = 0.1              # diffusion coefficient
+    u = lambda x,y: 1.0     # convection velocities
+    v = lambda x,y: 1.0
+    D = 0.1                    # diffusion coefficient
 
     # --- Analytical solution ---
     phi_exact = analytical_solution(X, Y)
 
     # --- Source term ---
     source_term = (
-        -np.pi * u * np.sin(np.pi * X) * np.cos(np.pi * Y)  # convection in x
-        -np.pi * v * np.cos(np.pi * X) * np.sin(np.pi * Y)  # convection in y
+        -np.pi * u(X,Y) * np.sin(np.pi * X) * np.cos(np.pi * Y)  # convection in x
+        -np.pi * v(X,Y) * np.cos(np.pi * X) * np.sin(np.pi * Y)  # convection in y
         + 2 * D * np.pi**2 * np.cos(np.pi * X) * np.cos(np.pi * Y)  # diffusion
     )
 

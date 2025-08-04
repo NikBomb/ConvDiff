@@ -24,14 +24,15 @@ def test_dirichlet():
     X, Y = np.meshgrid(x, y, indexing="ij")
 
     # --- Physical parameters ---
-    u, v = 1.0, 1.0      # convection velocities
+    u = lambda x,y: 1.0
+    v = lambda x,y: 1.0
     D = 0.1              # diffusion coefficient
 
 # --- Analytical solution and source term ---
     phi_exact = np.cos(np.pi * X) * np.cos(np.pi * Y)
     source_term = (
-    -np.pi * u * np.sin(np.pi * X) * np.cos(np.pi * Y)
-    -np.pi * v * np.cos(np.pi * X) * np.sin(np.pi * Y)
+    -np.pi * u(X,Y) * np.sin(np.pi * X) * np.cos(np.pi * Y)
+    -np.pi * v(X,Y) * np.cos(np.pi * X) * np.sin(np.pi * Y)
     + 2 * D * np.pi**2 * np.cos(np.pi * X) * np.cos(np.pi * Y)
     )
 
