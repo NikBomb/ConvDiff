@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.sparse import lil_matrix
 from scipy.sparse.linalg import bicgstab
+from scipy.sparse.linalg import gmres
 
 def idx(i, j, Ny):
     return i * Ny + j
@@ -84,10 +85,14 @@ def convection_diffusion_solver(Nx, Ny, D, u, v, boundary_types, boundary_funcs,
             A[p, idx(i, j-1, Ny)]   = -as_
             A[p, idx(i, j+1, Ny)]   = -an
             b[p] = source_term[i, j]
+    
 
     # --- Solve linear system ---
-    phi_vec, info = bicgstab(A.tocsr(), b, rtol=1e-8)
+    #phi_vec, info = bicgstab(A.tocsr(), b, rtol=1e-8)
+    phi_vec, info = gmres(A.tocsr(), b, restart=100, rtol=1e-8)
     if info != 0:
         raise RuntimeError(f"Solver did not converge. Info: {info}")
 
+    #from numpy.linalg import solve
+    #phi_vec = solve(A.todense(), b)
     return phi_vec.reshape((Nx, Ny))
